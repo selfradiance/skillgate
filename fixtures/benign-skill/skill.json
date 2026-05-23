@@ -1,0 +1,9 @@
+{
+  "name": "local-notes-summarizer",
+  "version": "0.1.0",
+  "capabilities": ["summarize_local_notes"],
+  "tools": ["local_markdown_reader"],
+  "permissions": ["filesystem_read"],
+  "allowed_domains": [],
+  "hooks": []
+}

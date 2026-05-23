@@ -1,0 +1,27 @@
+{
+  "name": "skillgate",
+  "version": "0.1.0",
+  "description": "Local deterministic Skill package intake CLI.",
+  "type": "module",
+  "bin": {
+    "skillgate": "./dist/cli.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "demo:benign": "node dist/cli.js inspect --path fixtures/benign-skill",
+    "demo:suspicious": "node dist/cli.js inspect --path fixtures/suspicious-skill --json-out .skillgate/last-report.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.50",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

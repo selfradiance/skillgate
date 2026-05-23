@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+.skillgate/
+.env
+.env.*
+*.log
