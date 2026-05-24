@@ -25,7 +25,7 @@ export async function parseSurfaces(
         severity: "review",
         file: surface.path,
         code: "surface_too_large",
-        message: "Surface exceeds the v0.1.0 scan cap and was not parsed.",
+        message: "Surface exceeds the v0.1.1 scan cap and was not parsed.",
         detail: `${surface.bytes} bytes`
       });
       continue;
@@ -144,7 +144,7 @@ function collectLabels(value: unknown): string[] {
   }
 
   const labels: string[] = [];
-  for (const key of ["name", "id", "type", "tool", "command", "permission", "scope", "domain", "url", "value"]) {
+  for (const key of ["name", "id", "type", "tool", "command", "permission", "scope", "domain", "url", "capability", "action"]) {
     const nested = record[key];
     if (typeof nested === "string") {
       labels.push(nested);

@@ -1,6 +1,6 @@
 {
   "name": "skillgate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local deterministic Skill package intake CLI.",
   "type": "module",
   "bin": {

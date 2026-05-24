@@ -1,5 +1,5 @@
 export const TOOL_NAME = "SkillGate";
-export const TOOL_VERSION = "0.1.0";
+export const TOOL_VERSION = "0.1.1";
 
 export type Verdict = "no_findings" | "review" | "elevated_review";
 export type FindingSeverity = "review" | "elevated_review";

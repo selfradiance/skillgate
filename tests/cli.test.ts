@@ -43,6 +43,27 @@ describe("cli", () => {
     expect(io.stdoutText()).toContain("SkillGate Intake Report");
   });
 
+  it("does not echo generic manifest value fields in terminal or JSON output", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "skillgate-value-"));
+    const jsonOut = path.join(tempDir, "report.json");
+    const secretLikeValue = "sk-test-secret-value";
+    const io = makeIo();
+
+    await fs.writeFile(path.join(tempDir, "SKILL.md"), "# Value Echo Test\n", "utf8");
+    await fs.writeFile(
+      path.join(tempDir, "skill.json"),
+      JSON.stringify({ name: "value-echo-test", permissions: [{ value: secretLikeValue }] }),
+      "utf8"
+    );
+
+    const code = await runCli(["inspect", "--path", tempDir, "--json-out", jsonOut], io);
+    const raw = await fs.readFile(jsonOut, "utf8");
+
+    expect(code).toBe(0);
+    expect(io.stdoutText()).not.toContain(secretLikeValue);
+    expect(raw).not.toContain(secretLikeValue);
+  });
+
   it("invalid path exits nonzero", async () => {
     const io = makeIo();
     const code = await runCli(["inspect", "--path", path.join(repoRoot, "missing-skill")], io);

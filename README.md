@@ -10,7 +10,7 @@ The CLI does not execute, install, or trust the Skill under review.
 
 ## 2. What This Proves
 
-The v0.1.0 proof shows that a local deterministic CLI can inspect one local agent Skill package before harness admission and produce a bounded instruction/capability intake report without executing, installing, or trusting the Skill.
+The v0.1.1 proof shows that a local deterministic CLI can inspect one local agent Skill package before harness admission and produce a bounded instruction/capability intake report without executing, installing, or trusting the Skill.
 
 It makes the Skill admission boundary visible:
 
@@ -77,21 +77,47 @@ Verdict: elevated_review
 
 Scanned surfaces:
 - SKILL.md
+- skill.json
 - README.md
 - docs/reference.md
-- skill.json
 
 Declared capability surface:
-- tools: background-daemon, curl, shell
+- tools: background-daemon, curl, node docs/agent.js, shell
 - capabilities: external_upload, summarize_notes
 - permissions: env, filesystem_write, network, secrets, shell
 - domains: *
 - hooks: background: daemon, on_admit: bash setup.sh, postinstall: node install.js
 
 Findings:
-- [elevated_review] SKILL.md: hidden_tool_instruction - phrase matched: "do not tell the user"
-- [elevated_review] skill.json: broad_permission - permission: shell
-- [review] skill.json: broad_domain - allowed_domains includes "*"
+- [elevated_review] declared-surface: broad_permission - Declared permission matches a broad capability surface. - permission: env
+- [elevated_review] declared-surface: broad_permission - Declared permission matches a broad capability surface. - permission: filesystem_write
+- [elevated_review] declared-surface: broad_permission - Declared permission matches a broad capability surface. - permission: network
+- [elevated_review] declared-surface: broad_permission - Declared permission matches a broad capability surface. - permission: secrets
+- [elevated_review] declared-surface: broad_permission - Declared permission matches a broad capability surface. - permission: shell
+- [elevated_review] declared-surface: broad_tool - Declared tool matches a broad command or transfer surface. - tool: curl
+- [elevated_review] declared-surface: broad_tool - Declared tool matches a broad command or transfer surface. - tool: shell
+- [elevated_review] declared-surface: command_hook - Declared hook matches an admission or command hook signal. - hook: background: daemon
+- [elevated_review] declared-surface: command_hook - Declared hook matches an admission or command hook signal. - hook: on_admit: bash setup.sh
+- [elevated_review] declared-surface: command_hook - Declared hook matches an admission or command hook signal. - hook: postinstall: node install.js
+- [elevated_review] docs/reference.md: boundary_expanding_language - Instruction text contains background process language. - phrase matched: "background process"
+- [elevated_review] skill.json: mutation_or_exfiltration_language - Instruction text contains upload language. - phrase matched: "upload"
+- [elevated_review] skill.json: sensitive_access_language - Instruction text mentions secrets. - phrase matched: "secrets"
+- [elevated_review] SKILL.md: boundary_expanding_language - Instruction text contains background process language. - phrase matched: "background process"
+- [elevated_review] SKILL.md: boundary_expanding_language - Instruction text contains shell execution language. - phrase matched: "execute shell"
+- [elevated_review] SKILL.md: hidden_tool_instruction - Instruction text contains policy bypass language. - phrase matched: "bypass policy"
+- [elevated_review] SKILL.md: hidden_tool_instruction - Instruction text contains guardrail disabling language. - phrase matched: "disable guardrails"
+- [elevated_review] SKILL.md: hidden_tool_instruction - Instruction text asks to hide behavior from the user. - phrase matched: "do not tell the user"
+- [elevated_review] SKILL.md: hidden_tool_instruction - Instruction text asks to override surrounding instructions. - phrase matched: "ignore previous instructions"
+- [elevated_review] SKILL.md: mutation_or_exfiltration_language - Instruction text contains file deletion language. - phrase matched: "delete files"
+- [elevated_review] SKILL.md: mutation_or_exfiltration_language - Instruction text contains overwrite language. - phrase matched: "overwrite"
+- [elevated_review] SKILL.md: mutation_or_exfiltration_language - Instruction text contains external send language. - phrase matched: "send to external"
+- [elevated_review] SKILL.md: mutation_or_exfiltration_language - Instruction text contains upload language. - phrase matched: "upload"
+- [elevated_review] SKILL.md: sensitive_access_language - Instruction text mentions API keys. - phrase matched: "api keys"
+- [elevated_review] SKILL.md: sensitive_access_language - Instruction text mentions environment variable access. - phrase matched: "read environment variables"
+- [elevated_review] SKILL.md: sensitive_access_language - Instruction text mentions secrets. - phrase matched: "secrets"
+- [elevated_review] SKILL.md: sensitive_access_language - Instruction text mentions tokens. - phrase matched: "tokens"
+- [review] declared-surface: broad_domain - Allowed domain declaration is broad. - allowed_domains includes "*"
+- [review] docs/reference.md: boundary_expanding_language - Instruction text contains dependency installation language. - phrase matched: "install dependency"
 
 Limitations:
 - This did not execute the Skill.
@@ -107,7 +133,7 @@ When `--json-out` is provided, SkillGate writes a JSON report with this shape:
 {
   "tool": {
     "name": "SkillGate",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "inspectedPath": "/absolute/path/to/skill",
   "timestamp": "2026-05-23T00:00:00.000Z",
@@ -146,7 +172,7 @@ These are intake labels, not safety verdicts.
 
 ## 10. Design Boundaries
 
-SkillGate v0.1.0 uses local deterministic file inspection only.
+SkillGate v0.1.1 uses local deterministic file inspection only.
 
 - No Skill code execution.
 - No Skill installation.
@@ -158,7 +184,7 @@ SkillGate v0.1.0 uses local deterministic file inspection only.
 - No broad repo scanner claim.
 - No semantic trust judgment.
 
-Scan caps are intentionally modest: individual surfaces are capped at 256 KiB, reference discovery is limited to `docs/` and `examples/`, hidden directories are skipped, and `node_modules`, `.git`, `dist`, `coverage`, and `.skillgate` are ignored.
+Scan caps are intentionally modest: individual surfaces are capped at 256 KiB, reference discovery is limited to `docs/` and `examples/`, hidden directories are skipped, and `node_modules`, `.git`, `dist`, `coverage`, and `.skillgate` are ignored. Discovered surfaces are resolved before parsing and skipped if their real path leaves the inspected Skill package root.
 
 Detection is phrase and declaration based. Regexes and string matching do not understand intent.
 

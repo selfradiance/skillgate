@@ -18,6 +18,7 @@ A local deterministic CLI can inspect one local agent Skill package before harne
 - No sandboxing.
 - No semantic trust judgment.
 - No broad repo analysis claim.
+- Discovered surfaces must remain within the inspected Skill package root after realpath resolution.
 
 ## Repo Location
 
@@ -33,9 +34,9 @@ A local deterministic CLI can inspect one local agent Skill package before harne
 - Benign demo: `npm run demo:benign`
 - Suspicious demo: `npm run demo:suspicious`
 
-## v0.1.0 Status
+## v0.1.1 Status
 
-Initial proof implementation for Skill-package-aware intake.
+Hardening pass for package-root containment and bounded manifest label reporting, without expanding the v0.1.0 proof scope.
 
 ## Relationship To Nearby Projects
 
@@ -45,7 +46,7 @@ Initial proof implementation for Skill-package-aware intake.
 - `mcp-config-inventory`: MCP configuration inventory, separate from Skill package intake.
 - `ActionProof`: action evidence and traceability, downstream of admission.
 - `MCP Firewall`: MCP tool boundary control, separate from local Skill package inspection.
-- `AgentGate`: broader agent admission/control concept. SkillGate v0.1.0 does not integrate with it.
+- `AgentGate`: broader agent admission/control concept. SkillGate v0.1.1 does not integrate with it.
 
 ## Future Notes
 

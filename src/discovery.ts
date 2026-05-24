@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import type { Finding, ScannedSurface, SurfaceKind } from "./types.js";
 
@@ -42,15 +42,16 @@ export interface DiscoveryResult {
 
 export async function discoverSkillSurfaces(inputPath: string): Promise<DiscoveryResult> {
   const rootPath = path.resolve(inputPath);
+  const rootRealPath = await fs.realpath(rootPath);
   const scannedSurfaces: ScannedSurface[] = [];
   const findings: Finding[] = [];
 
   for (const surface of ROOT_SURFACES) {
-    await addSurfaceIfPresent(rootPath, surface.file, surface.kind, surface.reason, scannedSurfaces);
+    await addSurfaceIfPresent(rootPath, rootRealPath, surface.file, surface.kind, surface.reason, scannedSurfaces);
   }
 
-  await addPackageJsonIfSkillLike(rootPath, scannedSurfaces, findings);
-  await addReferenceSurfaces(rootPath, scannedSurfaces);
+  await addPackageJsonIfSkillLike(rootPath, rootRealPath, scannedSurfaces, findings);
+  await addReferenceSurfaces(rootPath, rootRealPath, scannedSurfaces);
 
   return {
     rootPath,
@@ -99,6 +100,7 @@ function sortFindings(findings: Finding[]): Finding[] {
 
 async function addSurfaceIfPresent(
   rootPath: string,
+  rootRealPath: string,
   relativePath: string,
   kind: SurfaceKind,
   reason: string,
@@ -106,17 +108,17 @@ async function addSurfaceIfPresent(
 ): Promise<void> {
   const absolutePath = path.join(rootPath, relativePath);
   try {
-    const stat = await fs.stat(absolutePath);
-    if (!stat.isFile()) {
+    const containedFile = await getContainedFile(rootRealPath, absolutePath);
+    if (!containedFile) {
       return;
     }
 
     scannedSurfaces.push({
       path: toPosix(relativePath),
-      absolutePath,
+      absolutePath: containedFile.realPath,
       kind,
       reason,
-      bytes: stat.size
+      bytes: containedFile.stat.size
     });
   } catch {
     return;
@@ -125,34 +127,35 @@ async function addSurfaceIfPresent(
 
 async function addPackageJsonIfSkillLike(
   rootPath: string,
+  rootRealPath: string,
   scannedSurfaces: ScannedSurface[],
   findings: Finding[]
 ): Promise<void> {
   const relativePath = "package.json";
   const absolutePath = path.join(rootPath, relativePath);
-  let stat;
+  let containedFile;
   try {
-    stat = await fs.stat(absolutePath);
+    containedFile = await getContainedFile(rootRealPath, absolutePath);
   } catch {
     return;
   }
 
-  if (!stat.isFile()) {
+  if (!containedFile) {
     return;
   }
 
   try {
-    const text = await readSnippet(absolutePath);
+    const text = await readPrefix(containedFile.realPath, MAX_SURFACE_BYTES);
     if (!appearsSkillLikePackageJson(text)) {
       return;
     }
 
     scannedSurfaces.push({
       path: relativePath,
-      absolutePath,
+      absolutePath: containedFile.realPath,
       kind: "package_manifest",
       reason: "package.json declares Skill-like capability fields",
-      bytes: stat.size
+      bytes: containedFile.stat.size
     });
   } catch (error) {
     findings.push({
@@ -206,26 +209,31 @@ function hasSkillLikeDeclaration(value: Record<string, unknown>): boolean {
   return false;
 }
 
-async function addReferenceSurfaces(rootPath: string, scannedSurfaces: ScannedSurface[]): Promise<void> {
+async function addReferenceSurfaces(
+  rootPath: string,
+  rootRealPath: string,
+  scannedSurfaces: ScannedSurface[]
+): Promise<void> {
   const referenceRoots = ["docs", "examples"];
   for (const referenceRoot of referenceRoots) {
-    const absoluteRoot = path.join(rootPath, referenceRoot);
+    const logicalRoot = path.join(rootPath, referenceRoot);
     try {
-      const stat = await fs.stat(absoluteRoot);
-      if (!stat.isDirectory()) {
+      const readRoot = await getContainedDirectory(rootRealPath, logicalRoot);
+      if (!readRoot) {
         continue;
       }
+      await walkReferenceDirectory(rootPath, rootRealPath, logicalRoot, readRoot, 0, scannedSurfaces);
     } catch {
       continue;
     }
-
-    await walkReferenceDirectory(rootPath, absoluteRoot, 0, scannedSurfaces);
   }
 }
 
 async function walkReferenceDirectory(
   rootPath: string,
-  currentDir: string,
+  rootRealPath: string,
+  currentLogicalDir: string,
+  currentReadDir: string,
   depth: number,
   scannedSurfaces: ScannedSurface[]
 ): Promise<void> {
@@ -233,34 +241,42 @@ async function walkReferenceDirectory(
     return;
   }
 
-  const entries = await fs.readdir(currentDir, { withFileTypes: true });
+  const entries = await fs.readdir(currentReadDir, { withFileTypes: true });
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (entry.isDirectory()) {
+    const logicalPath = path.join(currentLogicalDir, entry.name);
+    const readPath = path.join(currentReadDir, entry.name);
+
+    const containedDirectory =
+      entry.isDirectory() || entry.isSymbolicLink() ? await getContainedDirectory(rootRealPath, readPath) : undefined;
+    if (containedDirectory) {
       if (shouldSkipDirectory(entry.name)) {
         continue;
       }
-      await walkReferenceDirectory(rootPath, path.join(currentDir, entry.name), depth + 1, scannedSurfaces);
+      await walkReferenceDirectory(rootPath, rootRealPath, logicalPath, containedDirectory, depth + 1, scannedSurfaces);
       continue;
     }
 
-    if (!entry.isFile() || !isReferenceCandidate(entry.name)) {
+    if (!isReferenceCandidate(entry.name)) {
       continue;
     }
 
-    const absolutePath = path.join(currentDir, entry.name);
-    const relativePath = toPosix(path.relative(rootPath, absolutePath));
-    const text = await readSnippet(absolutePath);
+    const containedFile = await getContainedFile(rootRealPath, readPath);
+    if (!containedFile) {
+      continue;
+    }
+
+    const relativePath = toPosix(path.relative(rootPath, logicalPath));
+    const text = await readPrefix(containedFile.realPath, MAX_SURFACE_BYTES);
     if (!isExplicitSkillReference(relativePath, text)) {
       continue;
     }
 
-    const stat = await fs.stat(absolutePath);
     scannedSurfaces.push({
       path: relativePath,
-      absolutePath,
+      absolutePath: containedFile.realPath,
       kind: "reference",
       reason: "explicit Skill instruction/reference surface under docs or examples",
-      bytes: stat.size
+      bytes: containedFile.stat.size
     });
   }
 }
@@ -291,10 +307,10 @@ function isExplicitSkillReference(relativePath: string, text: string): boolean {
   return pathHints.some((hint) => lowerPath.includes(hint)) || textHints.some((hint) => lowerText.includes(hint));
 }
 
-async function readSnippet(absolutePath: string): Promise<string> {
+async function readPrefix(absolutePath: string, maxBytes: number): Promise<string> {
   const handle = await fs.open(absolutePath, "r");
   try {
-    const buffer = Buffer.alloc(16 * 1024);
+    const buffer = Buffer.alloc(maxBytes);
     const result = await handle.read(buffer, 0, buffer.length, 0);
     return buffer.subarray(0, result.bytesRead).toString("utf8");
   } finally {
@@ -308,4 +324,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toPosix(value: string): string {
   return value.split(path.sep).join("/");
+}
+
+async function getContainedFile(
+  rootRealPath: string,
+  absolutePath: string
+): Promise<{ realPath: string; stat: Stats } | undefined> {
+  await fs.lstat(absolutePath);
+  const realPath = await fs.realpath(absolutePath);
+  if (!isPathContained(rootRealPath, realPath)) {
+    return undefined;
+  }
+
+  const stat = await fs.stat(realPath);
+  if (!stat.isFile()) {
+    return undefined;
+  }
+
+  return { realPath, stat };
+}
+
+async function getContainedDirectory(rootRealPath: string, absolutePath: string): Promise<string | undefined> {
+  await fs.lstat(absolutePath);
+  const realPath = await fs.realpath(absolutePath);
+  if (!isPathContained(rootRealPath, realPath)) {
+    return undefined;
+  }
+
+  const stat = await fs.stat(realPath);
+  if (!stat.isDirectory()) {
+    return undefined;
+  }
+
+  return realPath;
+}
+
+function isPathContained(rootRealPath: string, candidateRealPath: string): boolean {
+  const relativePath = path.relative(rootRealPath, candidateRealPath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
