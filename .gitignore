@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 .skillgate/
+SKILLGATE_PROJECT_CONTEXT.md
 .env
 .env.*
 *.log
