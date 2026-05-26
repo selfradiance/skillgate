@@ -23,9 +23,10 @@ export async function parseSurfaces(
     if (surface.bytes > MAX_SURFACE_BYTES) {
       findings.push({
         severity: "review",
+        surface: surfaceKindToFindingSurface(surface.kind),
         file: surface.path,
         code: "surface_too_large",
-        message: "Surface exceeds the v0.1.1 scan cap and was not parsed.",
+        message: "Surface exceeds the v0.2.0 scan cap and was not parsed.",
         detail: `${surface.bytes} bytes`
       });
       continue;
@@ -64,6 +65,7 @@ function parseManifestText(file: string, text: string, findings: Finding[]): Man
   } catch (error) {
     findings.push({
       severity: "review",
+      surface: "capability",
       file,
       code: "malformed_manifest",
       message: "Manifest JSON could not be parsed.",
@@ -76,6 +78,7 @@ function parseManifestText(file: string, text: string, findings: Finding[]): Man
   if (!result.success) {
     findings.push({
       severity: "review",
+      surface: "capability",
       file,
       code: "manifest_shape_issue",
       message: "Manifest JSON is not an object-shaped Skill declaration surface.",
@@ -85,6 +88,13 @@ function parseManifestText(file: string, text: string, findings: Finding[]): Man
   }
 
   return result.data;
+}
+
+function surfaceKindToFindingSurface(kind: ScannedSurface["kind"]): Finding["surface"] {
+  if (kind === "instruction" || kind === "documentation" || kind === "reference") {
+    return "instruction";
+  }
+  return "capability";
 }
 
 function extractDeclaredSurfaces(manifest: ManifestObject): DeclaredSurfaces {
@@ -220,12 +230,13 @@ function cloneDeclaredSurfaces(value: DeclaredSurfaces): DeclaredSurfaces {
 function sortFindings(findings: Finding[]): Finding[] {
   return [...findings].sort((a, b) => {
     return (
-      severityRank(a.severity) - severityRank(b.severity) ||
       a.file.localeCompare(b.file) ||
+      a.surface.localeCompare(b.surface) ||
       a.code.localeCompare(b.code) ||
       a.message.localeCompare(b.message) ||
       (a.detail ?? "").localeCompare(b.detail ?? "") ||
-      (a.matchedText ?? "").localeCompare(b.matchedText ?? "")
+      (a.matchedText ?? "").localeCompare(b.matchedText ?? "") ||
+      severityRank(a.severity) - severityRank(b.severity)
     );
   });
 }

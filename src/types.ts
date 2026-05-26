@@ -1,8 +1,9 @@
 export const TOOL_NAME = "SkillGate";
-export const TOOL_VERSION = "0.1.1";
+export const TOOL_VERSION = "0.2.0";
 
 export type Verdict = "no_findings" | "review" | "elevated_review";
 export type FindingSeverity = "review" | "elevated_review";
+export type FindingSurface = "instruction" | "capability" | "execution";
 
 export type SurfaceKind =
   | "instruction"
@@ -35,6 +36,7 @@ export interface TextSurface {
 
 export interface Finding {
   severity: FindingSeverity;
+  surface: FindingSurface;
   file: string;
   code: string;
   message: string;
@@ -68,6 +70,9 @@ export interface InspectionResult {
 export interface ReportSummary {
   scannedSurfaceCount: number;
   findingCount: number;
+  instructionFindingCount: number;
+  capabilityFindingCount: number;
+  executionFindingCount: number;
   reviewFindingCount: number;
   elevatedReviewFindingCount: number;
   declaredToolCount: number;

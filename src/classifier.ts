@@ -4,6 +4,7 @@ import { parseSurfaces } from "./parser.js";
 import type { DeclaredSurfaces, Finding, InspectionResult, ParsedInspection, Verdict } from "./types.js";
 import { TOOL_NAME, TOOL_VERSION } from "./types.js";
 import { buildInspectionResult } from "./report.js";
+import { inspectExecutionSurface } from "./execution.js";
 
 const SUSPICIOUS_TOOL_TERMS = ["shell", "exec", "terminal", "bash", "zsh", "powershell", "curl", "wget"];
 const ELEVATED_PERMISSIONS = ["filesystem_write", "network", "secrets", "env", "shell"];
@@ -129,7 +130,11 @@ export async function inspectSkillPackage(inputPath: string, now = new Date()): 
 
   const discovery = await discoverSkillSurfaces(resolvedPath);
   const parsed = await parseSurfaces(discovery.rootPath, discovery.scannedSurfaces, discovery.findings);
-  const findings = sortFindings([...parsed.findings, ...classifyParsedInspection(parsed)]);
+  const findings = sortFindings([
+    ...parsed.findings,
+    ...classifyParsedInspection(parsed),
+    ...(await inspectExecutionSurface(parsed))
+  ]);
   const verdict = deriveVerdict(findings);
 
   return buildInspectionResult({
@@ -174,6 +179,7 @@ function classifyShape(parsed: ParsedInspection): Finding[] {
   if (parsed.scannedSurfaces.length === 0) {
     findings.push({
       severity: "review",
+      surface: "instruction",
       file: ".",
       code: "no_skill_surfaces_found",
       message: "No Skill package surfaces were found."
@@ -184,6 +190,7 @@ function classifyShape(parsed: ParsedInspection): Finding[] {
   if (!hasSkillMd) {
     findings.push({
       severity: "review",
+      surface: "instruction",
       file: ".",
       code: "missing_primary_skill_surface",
       message: "No SKILL.md surface was found."
@@ -193,6 +200,7 @@ function classifyShape(parsed: ParsedInspection): Finding[] {
   if (!hasManifest) {
     findings.push({
       severity: "review",
+      surface: "capability",
       file: ".",
       code: "missing_manifest_surface",
       message: "No Skill manifest declaration surface was found."
@@ -210,6 +218,7 @@ function classifyDeclaredSurfaces(declared: DeclaredSurfaces): Finding[] {
     if (matched) {
       findings.push({
         severity: "elevated_review",
+        surface: "capability",
         file: "declared-surface",
         code: "broad_tool",
         message: "Declared tool matches a broad command or transfer surface.",
@@ -225,6 +234,7 @@ function classifyDeclaredSurfaces(declared: DeclaredSurfaces): Finding[] {
     if (elevated || review) {
       findings.push({
         severity: elevated ? "elevated_review" : "review",
+        surface: "capability",
         file: "declared-surface",
         code: "broad_permission",
         message: "Declared permission matches a broad capability surface.",
@@ -239,6 +249,7 @@ function classifyDeclaredSurfaces(declared: DeclaredSurfaces): Finding[] {
     if (matched) {
       findings.push({
         severity: "review",
+        surface: "capability",
         file: "declared-surface",
         code: "broad_domain",
         message: "Allowed domain declaration is broad.",
@@ -253,6 +264,7 @@ function classifyDeclaredSurfaces(declared: DeclaredSurfaces): Finding[] {
     if (matched) {
       findings.push({
         severity: "elevated_review",
+        surface: "capability",
         file: "declared-surface",
         code: "command_hook",
         message: "Declared hook matches an admission or command hook signal.",
@@ -277,6 +289,7 @@ function classifyTextSurfaces(parsed: ParsedInspection): Finding[] {
 
       findings.push({
         severity: signal.severity,
+        surface: "instruction",
         file: surface.path,
         code: signal.code,
         message: signal.message,
@@ -308,11 +321,12 @@ function findDomainTerm(value: string): string | undefined {
 function sortFindings(findings: Finding[]): Finding[] {
   return [...findings].sort((a, b) => {
     return (
-      severityRank(a.severity) - severityRank(b.severity) ||
       a.file.localeCompare(b.file) ||
+      a.surface.localeCompare(b.surface) ||
       a.code.localeCompare(b.code) ||
       (a.detail ?? "").localeCompare(b.detail ?? "") ||
       (a.matchedText ?? "").localeCompare(b.matchedText ?? "") ||
+      severityRank(a.severity) - severityRank(b.severity) ||
       a.message.localeCompare(b.message)
     );
   });

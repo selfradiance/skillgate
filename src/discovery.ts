@@ -91,6 +91,7 @@ function sortFindings(findings: Finding[]): Finding[] {
   return [...findings].sort((a, b) => {
     return (
       a.file.localeCompare(b.file) ||
+      a.surface.localeCompare(b.surface) ||
       a.code.localeCompare(b.code) ||
       a.message.localeCompare(b.message) ||
       (a.detail ?? "").localeCompare(b.detail ?? "")
@@ -146,7 +147,7 @@ async function addPackageJsonIfSkillLike(
 
   try {
     const text = await readPrefix(containedFile.realPath, MAX_SURFACE_BYTES);
-    if (!appearsSkillLikePackageJson(text)) {
+    if (!appearsSkillLikePackageJson(text, hasSkillPackageSurface(scannedSurfaces))) {
       return;
     }
 
@@ -154,12 +155,13 @@ async function addPackageJsonIfSkillLike(
       path: relativePath,
       absolutePath: containedFile.realPath,
       kind: "package_manifest",
-      reason: "package.json declares Skill-like capability fields",
+      reason: "package.json declares Skill-like capability or execution fields",
       bytes: containedFile.stat.size
     });
   } catch (error) {
     findings.push({
       severity: "review",
+      surface: "capability",
       file: relativePath,
       code: "package_shape_issue",
       message: "Could not inspect package.json for Skill-like declarations.",
@@ -168,19 +170,29 @@ async function addPackageJsonIfSkillLike(
   }
 }
 
-function appearsSkillLikePackageJson(text: string): boolean {
+function appearsSkillLikePackageJson(text: string, hasSkillPackageSurface: boolean): boolean {
   try {
     const parsed = JSON.parse(text) as unknown;
     if (!isRecord(parsed)) {
       return false;
     }
 
-    return hasSkillLikeDeclaration(parsed);
+    return hasSkillLikeDeclaration(parsed) || (hasSkillPackageSurface && hasPackageExecutionDeclaration(parsed));
   } catch {
     return /"(skill|skills|tools|capabilities|permissions|allowed_domains|allowedDomains|hooks|command_hooks|commandHooks)"\s*:/i.test(
       text
     );
   }
+}
+
+function hasPackageExecutionDeclaration(value: Record<string, unknown>): boolean {
+  return isRecord(value["scripts"]) || typeof value["bin"] === "string" || isRecord(value["bin"]);
+}
+
+function hasSkillPackageSurface(scannedSurfaces: ScannedSurface[]): boolean {
+  return scannedSurfaces.some((surface) => {
+    return surface.path === "SKILL.md" || surface.kind === "manifest";
+  });
 }
 
 function hasSkillLikeDeclaration(value: Record<string, unknown>): boolean {

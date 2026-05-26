@@ -9,8 +9,9 @@ import type {
 
 export const LIMITATIONS = [
   "This did not execute the Skill.",
+  "This did not install the Skill.",
   "This is not malware detection.",
-  "This is not a safety verdict."
+  "This does not prove the Skill is safe."
 ];
 
 export interface BuildInspectionResultInput {
@@ -57,13 +58,9 @@ export function renderHumanReport(report: InspectionResult): string {
   if (report.findings.length === 0) {
     lines.push("- none");
   } else {
-    for (const finding of report.findings) {
-      const parts = [`- [${finding.severity}] ${finding.file}: ${finding.code}`, finding.message];
-      if (finding.detail) {
-        parts.push(finding.detail);
-      }
-      lines.push(parts.join(" - "));
-    }
+    lines.push(...renderFindingsForSurface(report.findings, "instruction", "Instruction findings"));
+    lines.push(...renderFindingsForSurface(report.findings, "capability", "Capability findings"));
+    lines.push(...renderFindingsForSurface(report.findings, "execution", "Execution findings"));
   }
   lines.push("");
   lines.push("Limitations:");
@@ -79,6 +76,9 @@ function buildSummary(
   return {
     scannedSurfaceCount: scannedSurfaces.length,
     findingCount: findings.length,
+    instructionFindingCount: findings.filter((finding) => finding.surface === "instruction").length,
+    capabilityFindingCount: findings.filter((finding) => finding.surface === "capability").length,
+    executionFindingCount: findings.filter((finding) => finding.surface === "execution").length,
     reviewFindingCount: findings.filter((finding) => finding.severity === "review").length,
     elevatedReviewFindingCount: findings.filter((finding) => finding.severity === "elevated_review").length,
     declaredToolCount: declaredSurfaces.tools.length,
@@ -87,6 +87,27 @@ function buildSummary(
     declaredDomainCount: declaredSurfaces.allowedDomains.length,
     declaredHookCount: declaredSurfaces.hooks.length
   };
+}
+
+function renderFindingsForSurface(
+  findings: Finding[],
+  surface: Finding["surface"],
+  title: string
+): string[] {
+  const scopedFindings = findings.filter((finding) => finding.surface === surface);
+  if (scopedFindings.length === 0) {
+    return [];
+  }
+
+  const lines = [`${title}:`];
+  for (const finding of scopedFindings) {
+    const parts = [`- [${finding.severity}] ${finding.file}: ${finding.code}`, finding.message];
+    if (finding.detail) {
+      parts.push(finding.detail);
+    }
+    lines.push(parts.join(" - "));
+  }
+  return lines;
 }
 
 function renderList(values: string[]): string[] {
